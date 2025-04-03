@@ -1,0 +1,16 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+#What is the problem
+- I want be able to extract/convert .pdx files into .cert
+
+#What technology to use
+- I want to use the Microsoft Stack .net c# 
+- It mmay be console application or MAUI GUI for desktop application
+- Standalone application
+
+#Rules 
+- When do a job do it to the end
+- Use KISS principle - keep it simple as possible

@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PFX to CER Certificate Converter</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 2rem;
+        background-color: #f5f5f5;
+      }
+      .container {
+        background-color: white;
+        padding: 2rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        text-align: center;
+        color: #333;
+        margin-bottom: 2rem;
+      }
+      .upload-area {
+        border: 2px dashed #ccc;
+        border-radius: 4px;
+        padding: 2rem;
+        text-align: center;
+        margin-bottom: 1rem;
+        cursor: pointer;
+        transition: border-color 0.3s;
+      }
+      .upload-area:hover {
+        border-color: #007bff;
+      }
+      .form-group {
+        margin-bottom: 1rem;
+      }
+      label {
+        display: block;
+        margin-bottom: 0.5rem;
+        color: #333;
+      }
+      input[type="password"] {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-sizing: border-box;
+      }
+      button {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 4px;
+        cursor: pointer;
+        width: 100%;
+        font-size: 1rem;
+        transition: background-color 0.3s;
+      }
+      button:hover {
+        background-color: #0056b3;
+      }
+      button:disabled {
+        background-color: #ccc;
+        cursor: not-allowed;
+      }
+      .error {
+        color: #dc3545;
+        padding: 1rem;
+        margin: 1rem 0;
+        border: 1px solid #dc3545;
+        border-radius: 4px;
+        background-color: #f8d7da;
+        display: none;
+      }
+      .success {
+        color: #28a745;
+        padding: 1rem;
+        margin: 1rem 0;
+        border: 1px solid #28a745;
+        border-radius: 4px;
+        background-color: #d4edda;
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>PFX to CER Certificate Converter</h1>
+      <form id="convertForm">
+        <div class="upload-area" id="dropZone">
+          <p>Drag and drop your PFX certificate here or click to select</p>
+          <input type="file" id="pfxFile" accept=".pfx" style="display: none" />
+        </div>
+        <div class="form-group">
+          <label for="password">Certificate Password</label>
+          <input type="password" id="password" required minlength="1" />
+        </div>
+        <button type="submit" id="convertButton" disabled>
+          Convert to CER
+        </button>
+      </form>
+      <div id="errorMessage" class="error"></div>
+      <div id="successMessage" class="success"></div>
+    </div>
+
+    <script>
+      const form = document.getElementById("convertForm");
+      const dropZone = document.getElementById("dropZone");
+      const fileInput = document.getElementById("pfxFile");
+      const passwordInput = document.getElementById("password");
+      const convertButton = document.getElementById("convertButton");
+      const errorMessage = document.getElementById("errorMessage");
+      const successMessage = document.getElementById("successMessage");
+
+      // Handle drag and drop
+      dropZone.addEventListener("click", () => fileInput.click());
+      dropZone.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = "#007bff";
+      });
+      dropZone.addEventListener("dragleave", () => {
+        dropZone.style.borderColor = "#ccc";
+      });
+      dropZone.addEventListener("drop", (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = "#ccc";
+        if (e.dataTransfer.files.length > 0) {
+          fileInput.files = e.dataTransfer.files;
+          updateButtonState();
+        }
+      });
+
+      // Handle file selection
+      fileInput.addEventListener("change", updateButtonState);
+      passwordInput.addEventListener("input", updateButtonState);
+
+      function updateButtonState() {
+        convertButton.disabled = !(
+          fileInput.files.length > 0 && passwordInput.value.length > 0
+        );
+      }
+
+      // Handle form submission
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        errorMessage.style.display = "none";
+        successMessage.style.display = "none";
+
+        const formData = new FormData();
+        formData.append("pfxFile", fileInput.files[0]);
+        formData.append("password", passwordInput.value);
+
+        convertButton.disabled = true;
+        convertButton.textContent = "Converting...";
+
+        try {
+          const response = await fetch("/api/certificate/convert", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const error = await response.text();
+            throw new Error(error);
+          }
+
+          // Get the filename from the response headers if available
+          const contentDisposition = response.headers.get(
+            "content-disposition"
+          );
+          let filename = "certificate.cer";
+          if (contentDisposition) {
+            const matches = /filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/.exec(
+              contentDisposition
+            );
+            if (matches != null && matches[1]) {
+              filename = matches[1].replace(/['"]/g, "");
+            }
+          }
+
+          // Download the file
+          const blob = await response.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = filename;
+          document.body.appendChild(a);
+          a.click();
+          window.URL.revokeObjectURL(url);
+          document.body.removeChild(a);
+
+          successMessage.textContent = "Certificate converted successfully!";
+          successMessage.style.display = "block";
+        } catch (error) {
+          errorMessage.textContent = error.message;
+          errorMessage.style.display = "block";
+        } finally {
+          convertButton.disabled = false;
+          convertButton.textContent = "Convert to CER";
+        }
+      });
+    </script>
+  </body>
+</html>
